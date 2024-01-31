@@ -1205,48 +1205,33 @@ def init(
     macos = sys.platform == "darwin"
 
     if macos and mode == Mode.INTERACTIVE:
-        raise EnvironmentError("Sorry, the interactive mode is not available on macOS.")
+        try:
+            setupGuiEnvironment(_create_gateway)
+        except ModuleNotFoundError as e:
+            if e.msg == "No module named 'PyObjCTools'":
+                advice = (
+                    "PyObjC is required for GUI mode on macOS. Please install it.\n"
+                )
+                if "CONDA_PREFIX" in os.environ:
+                    advice += (
+                        "E.g.: conda install -c conda-forge pyobjc-core "
+                        "pyobjc-framework-cocoa"
+                    )
+                else:
+                    advice += "E.g.: pip install pyobjc"
+                raise RuntimeError(
+                    f"Failed to set up macOS GUI environment.\n{advice}"
+                )
+            else:
+                    raise
 
     if not sj.jvm_started():
         success = _create_jvm(ij_dir_or_version_or_endpoint, mode, add_legacy)
         if not success:
             raise RuntimeError("Failed to create a JVM with the requested environment.")
 
-    if mode == Mode.GUI:
-        # Show the GUI and block.
-        if macos:
-            # NB: This will block the calling (main) thread forever!
-            try:
-                setupGuiEnvironment(lambda: _create_gateway().ui().showUI())
-            except ModuleNotFoundError as e:
-                if e.msg == "No module named 'PyObjCTools'":
-                    advice = (
-                        "PyObjC is required for GUI mode on macOS. Please install it.\n"
-                    )
-                    if "CONDA_PREFIX" in os.environ:
-                        advice += (
-                            "E.g.: conda install -c conda-forge pyobjc-core "
-                            "pyobjc-framework-cocoa"
-                        )
-                    else:
-                        advice += "E.g.: pip install pyobjc"
-                    raise RuntimeError(
-                        f"Failed to set up macOS GUI environment.\n{advice}"
-                    )
-                else:
-                    raise
-        else:
-            # Create and show the application.
-            gateway = _create_gateway()
-            gateway.ui().showUI()
-            # We are responsible for our own blocking.
-            # TODO: Poll using something better than ui().isVisible().
-            while gateway.ui().isVisible():
-                time.sleep(1)
-            return None
-    else:
-        # HEADLESS or INTERACTIVE mode: create the gateway and return it.
-        return _create_gateway()
+    # HEADLESS or INTERACTIVE mode: create the gateway and return it.
+    return _create_gateway()
 
 
 def imagej_main():
