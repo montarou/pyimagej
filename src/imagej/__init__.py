@@ -60,7 +60,8 @@ __author__ = "ImageJ2 developers"
 __version__ = sj.get_version("pyimagej")
 
 _logger = logging.getLogger(__name__)
-_init_callbacks = []
+_init_ij_callbacks = []
+_init_generic_callbacks = []
 _rai_lock = threading.Lock()
 
 # Enable debug logging if DEBUG environment variable is set.
@@ -1215,8 +1216,10 @@ def init(
 
     def run_callbacks(ij):
         # invoke registered callback functions
-        for callback in _init_callbacks:
+        for callback in _init_ij_callbacks:
             callback(ij)
+        for callback in _init_generic_callbacks:
+            callback()
         return ij
 
     if mode == Mode.GUI:
@@ -1226,6 +1229,7 @@ def init(
         def show_gui_and_run_callbacks():
             global gateway
             gateway = _create_gateway()
+            setattr(gateway, True) # needed for napari-imagej gateway detection
             gateway.ui().showUI()
             run_callbacks(gateway)
             return gateway
@@ -1265,7 +1269,7 @@ def init(
     return run_callbacks(_create_gateway())
 
 
-def when_imagej_starts(f) -> None:
+def when_imagej_starts(f, param=None) -> None:
     """
     Registers a function to be called immediately after ImageJ2 starts.
     This is useful especially with GUI mode, to perform additional
@@ -1278,8 +1282,14 @@ def when_imagej_starts(f) -> None:
         init function before it returns or blocks.
     """
     # Add function to the list of callbacks to invoke upon start_jvm().
-    global _init_callbacks
-    _init_callbacks.append(f)
+    global _init_ij_callbacks
+    global _init_generic_callbacks
+
+    if param:
+        _init_ij_callbacks.append(f)
+    else:
+        _init_generic_callbacks.append(f)
+
 
 
 def imagej_main():
